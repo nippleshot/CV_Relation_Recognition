@@ -1,0 +1,35 @@
+use_gpu: True
+
+# training
+train_split: train
+train_lr: 0.5
+train_lr_adjust_rate: 0.1
+train_lr_adjust_freq: 5
+train_epoch_num: 15
+train_save_freq: 5
+train_print_freq: 10
+train_batch_size: 32
+
+# test_split: test
+test_split: val
+test_epoch: 15
+test_batch_size: 32
+
+
+# paths
+data_root: data
+cache_root: cache
+output_root: output
+checkpoint_root: checkpoint
+
+
+
+
+
+
+
+
+
+
+
+
