@@ -12,7 +12,7 @@ pyparsing==2.4.7
 python-dateutil==2.8.1
 pytz==2020.1
 PyWavelets==1.0.3
-PyYAML==5.3.1
+PyYAML==5.4
 scikit-image==0.14.5
 scipy==1.2.3
 six==1.15.0
