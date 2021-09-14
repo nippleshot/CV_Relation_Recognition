@@ -5,8 +5,7 @@ Data & Model 💁🏻 : https://drive.google.com/drive/folders/1e49dl0-9T8Z34YLf
 
 ##	处理框架
 
-- 模型 ： 3层一维卷积 + 3层全连接层
-<img width="711" alt="model" src="https://user-images.githubusercontent.com/44460142/85228574-13f48800-b41f-11ea-87b8-3af42484ba84.png">
+- 模型 ： 3层一维卷积 + 1层全连接层
 - Concatenate 之后输入向量的总维度 ： [1 * 2211]
 <img width="243" alt="concatenate" src="https://user-images.githubusercontent.com/44460142/85228575-148d1e80-b41f-11ea-8578-822b3f44411a.png">
 
