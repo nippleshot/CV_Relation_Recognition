@@ -15,7 +15,7 @@
 - `predicates.json` 파일 안에 있는 여러 predicate class들을 보았을 때, 방향과 관련있는 predicate들이 대다수였다 (next to，under，on the top of，on the right of 등등). 그래서 Subject bounding box에서 Object bounding box 까지의 방향이 중요한 feature중 하나라 생각했다.
 - 방향과 더불어 Subject와 Object의 크기와 관련있는 predicate들도 많이 찾아볼 수 있었다(taller than, skate on, hold, wear 등등). 모든 이미지들의 scale이 모두 다른점을 고려해서 scale에 독립적인  Subject와 Object의 비율과 면적 정보도 중요한 feature라고 생각했다.
 
-##### 데이터 전처리
+##### [데이터 전처리]
 
 <img src="./pics/Screen Shot 2021-10-09 at 6.33.11 PM.png" alt="Screen Shot 2021-10-09 at 6.33.11 PM" style="zoom: 40%;" />
 
@@ -53,7 +53,7 @@
 
   
 
-##### 모델 구조
+##### [모델 구조]
 
 <img src="./pics/Screen Shot 2021-10-09 at 11.31.20 PM.png" alt="Screen Shot 2021-10-09 at 11.31.20 PM" style="zoom:35%;" />
 
@@ -93,7 +93,7 @@
 - `model_ver: 1` 를 통해 이미지에서 직접 구상한 feature들을 계산하여 추출하는 방식은 성능이 좋지못한 걸로 확인해 CNN을 활용하여 모델의 성능을 개선시켜보기로 했다.
 - 모델의 전체적인 구조는 Human-Object Proposal 부분이 제외된 <a href="https://arxiv.org/pdf/1702.05448.pdf">HO-RCNN (Chao et al., 2018)</a> 의 구조를 참고하였다
 
-##### 데이터 전처리
+##### [데이터 전처리]
 
 <img src="./pics/Screen Shot 2021-10-10 at 12.12.10 AM.png" alt="Screen Shot 2021-10-10 at 12.12.10 AM" style="zoom:35%;" />
 
@@ -140,7 +140,7 @@
 
   
 
-##### 모델 구조
+##### [모델 구조]
 
 <img src="./pics/Screen Shot 2021-10-09 at 11.55.23 PM.png" alt="Screen Shot 2021-10-09 at 11.55.23 PM" style="zoom:90%;" />
 
@@ -169,7 +169,7 @@
 ### Dataset
 
 - **VRD (Visual Relationship Detection dataset)**
-
+  - Download : https://drive.google.com/file/d/1vPncv8A5m1P_iMFrhdzeANZSSgLtcpSc/view?usp=sharing 
   - *Images* :
 
     - Train (train_images) : 2999개
