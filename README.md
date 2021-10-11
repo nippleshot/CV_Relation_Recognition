@@ -189,7 +189,7 @@
 
      <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" style="zoom:50%;" />
 
-    ```json
+    ```python
     {...
     FILENAME: [...
     	{'subject': {'category': CATEGORY_ID, 'bbox': [XMIN, YMIN, XMAX, YMAX]},
