@@ -32,7 +32,7 @@
 
 - ***Bounding box Ratio & Area feature*** :
 
-  본 Feature array의 0~7번 index는 One-hot encode 형식이며 Subject와 object의 bounding box 가로,세로 길이의 비율을 나타낸다. 0~7번 index값이 1이되는 기준은 다음 조건을 만족 할 경우 설정된다 :
+  본 Feature array의 0/~7번 index는 One-hot encode 형식이며 Subject와 object의 bounding box 가로,세로 길이의 비율을 나타낸다. 0/~7번 index값이 1이되는 기준은 다음 조건을 만족 할 경우 설정된다 :
 
   Index[0] :  `Subject bbox의 x축 길이 > Subject bbox의 y축 길이*2` 
 
@@ -187,7 +187,7 @@
 
   - *Relation Annotation* :
 
-     <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" width="200" />
+     <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" width="300" />
 
     ```python
     {...
