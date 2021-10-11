@@ -1,8 +1,8 @@
 import os
 import yaml
 import torch
-from model import Classifier
-from dataset import VRD
+from model2 import Classifier2
+from dataset2 import VRD2
 
 
 class Container:
@@ -40,21 +40,20 @@ class Container:
         while curr_epoch < self.epoch_num:
             for batch_id, batch in enumerate(data_loader):
                 '''
-                batch = [
-                    [histograms[] batch_size 개], 
-                    [directions[] batch_size 개], 
-                    [ratios[] batch_size 개], 
-                    [sub_ids[] batch_size 개], 
-                    [obj_ids[] batch_size 개], 
-                    [labels[] batch_size 개]
-                ]
+                sub_imgs size   ==> torch.Size([20, 224, 224, 3])
+                obj_imgs size   ==> torch.Size([20, 224, 224, 3])
+                pred_imgs size  ==> torch.Size([20, 224, 224, 2])
+                img_labels size ==> torch.Size([20, 70])
                 '''
-                input_feature, labels = batch
-                input_feature = input_feature.type(torch.FloatTensor).to(self.device)
-                labels = labels.type(torch.FloatTensor).to(self.device)
+                sub_imgs, obj_imgs, pred_imgs, img_labels = batch
+                sub_imgs = sub_imgs.permute(0, 3, 1, 2).type(torch.FloatTensor).to(self.device)
+                obj_imgs = obj_imgs.permute(0, 3, 1, 2).type(torch.FloatTensor).to(self.device)
+                pred_imgs = pred_imgs.permute(0, 3, 1, 2).type(torch.FloatTensor).to(self.device)
 
-                predicted = self.model(input_feature)
-                loss = loss_func(predicted, labels)
+                img_labels = img_labels.type(torch.FloatTensor).to(self.device)
+
+                predicted = self.model(sub_imgs, obj_imgs, pred_imgs)
+                loss = loss_func(predicted, img_labels)
 
                 optimizer.zero_grad()
                 loss.backward()
@@ -70,9 +69,9 @@ class Container:
             os.makedirs(self.checkpoint_root)
 
         if curr_epoch % self.save_freq == 0:
-            checkpoint_path = os.path.join(self.checkpoint_root, 'model_%d.pkl' % curr_epoch)
+            checkpoint_path = os.path.join(self.checkpoint_root, 'model2_%d.pkl' % curr_epoch)
             torch.save(self.model.state_dict(), checkpoint_path)
-            print('============================== Checkpoint saved at %s ==============================' % checkpoint_path)
+            print('\tCheckpoint saved at %s\n' % checkpoint_path)
 
     def __adjust_lr__(self, curr_epoch):
         lr_curr = self.lr_init * (self.lr_adjust_rate ** int(curr_epoch / self.lr_adjust_freq))
@@ -91,7 +90,11 @@ if __name__ == '__main__':
     with open(cfg_path) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
 
-    train_set = VRD(cfg['data_root'], cfg['train_split'], cfg['cache_root'])
-    model = Classifier(train_set.input_feature_len, train_set.pre_category_num())
+    print("\n=========[ START : LOADING TRAIN DATASET FOR MODEL 2    ]=========")
+    train_set = VRD2(cfg['data_root'], cfg['train_split'], True, cfg['cache_root'])
+    print("=========[ FINISHED : LOADING TRAIN DATASET FOR MODEL 2 ]=========")
+    model = Classifier2(train_set.pre_category_num())
     container = Container(model, train_set, cfg)
+    print("\n=========[ START : TRAINING MODEL 2    ]=========")
     container.train()
+    print("=========[ FINISHED : TRAINING MODEL 2 ]=========")

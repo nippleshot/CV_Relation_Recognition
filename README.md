@@ -1,77 +1,206 @@
-# CV_Relation_Recognition
-2020年 《计算机视觉》 编程作业
+# CV_Multi_Relation_Classification
 
-Data & Model 💁🏻 : https://drive.google.com/drive/folders/1e49dl0-9T8Z34YLfVVcdY_yIP5EwK2j0
+### Main Task
 
-##	处理框架
+<img src="./pics/Screen Shot 2021-10-11 at 1.06.36 PM.png" alt="Screen Shot 2021-10-11 at 1.06.36 PM" style="zoom:23%;" />
 
-- 模型 ： 3层一维卷积 + 1层全连接层
-- Concatenate 之后输入向量的总维度 ： [1 * 2211]
-<img width="243" alt="concatenate" src="https://user-images.githubusercontent.com/44460142/85228575-148d1e80-b41f-11ea-8578-822b3f44411a.png">
-
-##  关键技术
-根据predicates.json里的关系类别，发现出现方向的关系（next to，under，on the top of，on the right of等）比较多了。所以输入的向量当中，添加了包括方向性的特征。计算方向性的特征是从主语物体的bounding box中心到宾语物体的bounding box中心的方向。首先计算两个点之间的角度之后换成到代表16个方向的One-hot encoding。但是生成了方向性的特征之后，发现大部分数据的方向是西方或者东方。
-
-<img width="204" alt="example" src="https://user-images.githubusercontent.com/44460142/85228569-0f2fd400-b41f-11ea-93ce-f97f034d3e9e.png">
-
-为了提高具体的辨别力，添加了还有一个特征包括主语和宾语bounding box的大小关联的信息。考虑了"sit next to", "stand next to"，"taller than"，"lying on"等的关系类别会跟主语和宾语bbox的大小和比率有相关，计算了主语和宾语之间的面积对比（主语的面积比宾语的面积几倍大）。而且添加了每个bbox的横纵比率信息（比如横向长度比纵向长度长两倍以上，横向长度和纵向长度是大概1:1像正方形等）。这种特征也表示为One-hot encoding
-
-<code>
-
-* 各Index的值为1的条件：
-
-  Index[0] : 满足主语bbox的x长度 > 主语bbox的y长度*2
-
-  Index[1] : 满足主语bbox的y长度*2 >主语bbox的x长度 > 主语bbox的y长度
-
-  Index[2] : 满足主语bbox的x长度*2 >主语bbox的y长度 > 主语bbox的x长度
-
-  Index[3] : 满足主语bbox的y长度 > 主语bbox的x长度*2
-
-  Index[4] : 满足宾语bbox的x长度 > 宾语bbox的y长度*2
-
-  Index[5] : 满足宾语bbox的y长度*2 >宾语bbox的x长度 > 宾语bbox的y长度
-
-  Index[6] : 满足宾语bbox的x长度*2 >宾语bbox的y长度 > 宾语bbox的x长度
-
-  Index[7] : 满足宾语bbox的y长度 > 宾语bbox的x长度*2
-
-* 最后Index的值是主语和宾语bbox的面积比较值
-
-  Index[8] : 主语bbox的面积 / 宾语bbox的面积
-
-</code>
-
-##  实验
-
-* 评价指标 ： recall = 被正确识别的关系标签总数 / 标注的关系标签总数
-
-一个测试样本包含：物体对<主语，宾语>和 k个关系类别（k不是固定值，k大于等于1）。在评估阶段，一个测试样本仅接受置信度最高的k个预测关系类别。
-recall = 被正确识别的关系标签总数 / 标注的关系标签总数
-
-例如：假设关系总数为10：[A,B,C,D,E,F,G,H,I,J]；一个测试样本的关系类别标签为[1,1,1,0,0,0,0,0,0,0]，表示其关系类别为[A,B,C]，k=3；模型为该样本预测得到的置信度向量为[0.9,0.8,0.1,0.0,0.0,0.0,0.5,0.2,0.0,0.0]，由于k=3，所以预测的关系标签为[1,1,0,0,0,0,1,0,0,0]，即[A,B,G]，其中正确的是[A,B]；recall = len([A,B]) / len([A,B,C])。
+- **INPUT** : Subject bounding box 와 Object bounding box 정보가 포함된 한 장의 이미지
+- **OUTPUT** : Predicate class 70개에 대한 예측 vector ( 각 value 범위 : [0, 1] )
 
 
-* 测试集 ： val_image , annotations_val.json
 
-* Hyperparameter :  Learning_rate : 0.5, train_batch_size : 32, test_batch_size : 32
+### Models
+
+#### CNN을 사용하지 않은 구조 ( `model_ver: 1` )
+
+- `predicates.json` 파일 안에 있는 여러 predicate class들을 보았을 때, 방향과 관련있는 predicate들이 대다수였다 (next to，under，on the top of，on the right of 등등). 그래서 Subject bounding box에서 Object bounding box 까지의 방향이 중요한 feature중 하나라 생각했다.
+- 방향과 더불어 Subject와 Object의 크기와 관련있는 predicate들도 많이 찾아볼 수 있었다(taller than, skate on, hold, wear 등등). 모든 이미지들의 scale이 모두 다른점을 고려해서 scale에 독립적인  Subject와 Object의 비율과 면적 정보도 중요한 feature라고 생각했다.
+
+##### 데이터 전처리
+
+<img src="./pics/Screen Shot 2021-10-09 at 6.33.11 PM.png" alt="Screen Shot 2021-10-09 at 6.33.11 PM" style="zoom: 40%;" />
+
+- ***Histogram feature*** : 
+
+  한 이미지에서 각 Subject와 Object의 Bounding box 내 영역의 RGB Color Histogram과 Gradient Histogram를 계산한다. (`cv2.calcHist()` , `skimage.hog()` 사용)
+
+- ***Direction feature*** : 
+
+  <img width="204" alt="example" src="https://user-images.githubusercontent.com/44460142/85228569-0f2fd400-b41f-11ea-93ce-f97f034d3e9e.png">
+
+  One-hot encode 형식의 feature array이며 array의 각 index는 나침반의 16개 방향 (N, NNE, NE, ENE, E 등...)을 의미한다. 한 이미지에서 Subject bounding box의 중심을 기준으로 Object bounding box 중심까지의 방향을 계산하여 대응하는 index의 값이 1이 된다.
+
+- ***Bounding box Ratio & Area feature*** :
+
+  본 Feature array의 0~7번 index는 One-hot encode 형식이며 Subject와 object의 bounding box 가로,세로 길이의 비율을 나타낸다. 0~7번 index값이 1이되는 기준은 다음 조건을 만족 할 경우 설정된다 :
+
+  Index[0] :  `Subject bbox의 x축 길이 > Subject bbox의 y축 길이*2` 
+
+  Index[1] :  `Subject bbox의 y축 길이*2 > Subject bbox의 x축 길이 > Subject bbox의 y축 길이  ` 
+
+  Index[2] :  `Subject bbox의 x축 길이*2 > Subject bbox의 y축 길이 > Subject bbox의 x축 길이  ` 
+
+  Index[3] :  `Subject bbox의 y축 길이 > Subject bbox의 x축 길이*2` 
+
+  Index[4] :  `Object bbox의 x축 길이 > Object bbox의 y축 길이*2` 
+
+  Index[5] :  `Object bbox의 y축 길이*2 > Object bbox의 x축 길이 > Object bbox의 y축 길이  ` 
+
+  Index[6] :  `Object bbox의 x축 길이*2 > Object bbox의 y축 길이 > Object bbox의 x축 길이  ` 
+
+  Index[7] :  `Object bbox의 y축 길이 > Object bbox의 x축 길이*2` 
+
+  Feature array의 마지막 index는 `Subject bbox의 면적 / Object bbox의 면적`  값이다.
+
   
+
+##### 모델 구조
+
+<img src="./pics/Screen Shot 2021-10-09 at 11.31.20 PM.png" alt="Screen Shot 2021-10-09 at 11.31.20 PM" style="zoom:35%;" />
+
+- Weight & Bias 초기값 설정 :
+
+  ```python
+  if isinstance(m, nn.Linear):
+  	nn.init.kaiming_uniform_(m.weight.data)
+  	nn.init.constant_(m.bias.data, 0)
+  ```
+
+- Hidden Layer Node 개수 설정 :
+
+  ```python
+  input_feature = 2211
+  output_classes = 70
+  hidden_nodes = int((input_feature + output_classes) * (2/3))
+  ```
+
+- Loss Function 설정 : `torch.nn.BCELoss()`
+
+- Optimizer 설정 : `torch.optim.SGD()`
+
+  - 훈련 중 learning rate 조정
+
+    ```python
+    lr_init = 0.1
+    lr_adjust_rate = 0.01
+    lr_adjust_freq = 5
+    def __adjust_lr__(self, curr_epoch):
+    	lr_curr = lr_init * (lr_adjust_rate ** int(curr_epoch / lr_adjust_freq))
+    ```
+
     
 
+#### CNN을 사용한 구조 ( `model_ver: 2` )
 
-##### SI : 主语id
+- `model_ver: 1` 를 통해 이미지에서 직접 구상한 feature들을 계산하여 추출하는 방식은 성능이 좋지못한 걸로 확인해 CNN을 활용하여 모델의 성능을 개선시켜보기로 했다.
+- 모델의 전체적인 구조는 Human-Object Proposal 부분이 제외된 <a href="https://arxiv.org/pdf/1702.05448.pdf">HO-RCNN (Chao et al., 2018)</a> 의 구조를 참고하였다
 
-##### OI : 宾语id
+##### 데이터 전처리
 
-##### H : 颜色直方图 + 梯度直方图特征
+<img src="./pics/Screen Shot 2021-10-10 at 12.12.10 AM.png" alt="Screen Shot 2021-10-10 at 12.12.10 AM" style="zoom:35%;" />
 
-##### D : 方向特征
+- 먼저 이미지에서 Subject와 Object bbox 좌표에 따라 Crop를 한 다음 각각 224 × 224 × 3 size로 resize를 하였다.
 
-##### R : 大小和比率特征
+-  Interaction pattern (Subject와 Object의 관계) 를 얻기 위해서 다음 과정들이 진행된다 :
 
-<img width="674" alt="experiment" src="https://user-images.githubusercontent.com/44460142/85228573-135bf180-b41f-11ea-9e5c-084dabf2914f.png">
+  1. 이미지에서 Subject bbox 좌표 내부의 pixel들은 1로 나머지는 모두 0으로 설정하여 Interaction pattern의 첫 번째 channel이 된다. 
 
-##  结论
+  2. 이미지에서 Object bbox 좌표 내부의 pixel들은 1로 나머지는 모두 0으로 설정 Interaction pattern의 두 번째 channel이 된다. 
 
-1. 在输入向量中添加了颜色直方图和梯度直方图特征之后，recall率提高了一些。但是可以看到大小和比率特征对整个模型影响不大。为了达到更高的recall率, 今后打算使用图片里提取的特征来训练模型。从整个图片上只切掉每个主语和宾语部分之后，通过VGG-16模型会提取每个主语和宾语图片的特征。Bounding box关联的特征是在比较短的时间内可以进行提取特征和训练模型，但是可以看得出对提高recall率没有产生很大的影响。
+  3. Attention window를 찾은 다음 Interaction pattern에서 Attention window 좌표에 따라 Crop를 한다.
+
+     - 한 전체 이미지에서 Subject bbox 와 Object bbox 관계 위치가 target으로 바로 잡힐 수 있게 Attention window을 사용한다
+
+     - Subject bbox 와 Object bbox의 좌표를 활용하여 Attention window를 찾아낸다
+
+       ```python
+       '''
+       parameter format :
+           sub_region --> [xmin, ymin, xmax, ymax]
+           obj_region --> [xmin, ymin, xmax, ymax]
+       '''
+       def find_attention_window(sub_region, obj_region):
+           attention_window = []
+           for idx in range(0,2):
+               if sub_region[idx] < obj_region[idx]:
+                   attention_window = attention_window + [sub_region[idx]]
+               else:
+                   attention_window = attention_window + [obj_region[idx]]
+           for idx in range(2,4):
+               if sub_region[idx] > obj_region[idx]:
+                   attention_window = attention_window + [sub_region[idx]]
+               else:
+                   attention_window = attention_window + [obj_region[idx]]
+           return attention_window
+       ```
+
+  4. Crop 한 Attention window 부분 안에 Subject와 Object bbox의 비율을 유지하면서 resize를 하기 위해 Attention window의 가로, 세로 길이 중 짧은 것을 긴 것과 동일하게 길이가 되도록 양쪽 side에 0으로 padding을 줘서 정사각형 형태로 만든 다음 224 × 224 × 2 size로 resize한다.
+
+- 모든 데이터 전처리하여 pickle를 통해 저장해둔 binary file의 용량이 전체 약 20GB정도 되서 Colab의 Standard RAM(13.6GB)으로는 훈련 진행이 불가능했다 🙄
+
+  - 그래서 `gzip` 을 통해 저장할 data를 압축하여 저장했고 AWS의 힘을 빌려 진행하였다.
+
+  
+
+##### 모델 구조
+
+<img src="./pics/Screen Shot 2021-10-09 at 11.55.23 PM.png" alt="Screen Shot 2021-10-09 at 11.55.23 PM" style="zoom:90%;" />
+
+- `Object.js` 파일 안에 있는 여러 Object class들을 보았을 때 대다수가 ImageNet의 class들과 겹쳐서 ImageNet로 Pre-trained된 ResNet-152를 사용하여 Subject와 Object 이미지의 feature를 추출하였다. 
+  - 그리고 ResNet-152의 Weight는 freeze시켜서 ( `requires_grad = False` ) 추가적으로 fine-tuning을 진행하지 않았다.
+- Interaction Pattern의 Channel 수가 2개이기 때문에 ResNet-152를 사용하지 않고 별도의 Convolution과 Pooling Layer를 만들어서 feature를 추출하였다. 
+  - Interaction Pattern의 feature가 이미지 전체를 함축할 수 있도록 Global Average Pooling을 추가했다 ( `nn.AdaptiveAvgPool2d(1)` ).
+- Subject와 Object 이미지의 feature 그리고 Interaction Pattern의 feature까지 모두 concatenate하여 `model_ver: 1` 에서 사용하였던 Classification Layer의 입력으로 넣었다.
+
+
+
+### Metrics
+
+* 평가지표 :  Recall@k
+
+  * 1개의 Test data는 《Subject, Object》 으로 되어있는 한개의 쌍과 k개의 Relation class를 포함함
+    * k는 고정값이 아닌 항상 1이상의 자연수임
+
+  ***Example.*** Relation class가 [A,B,C,D,E,F,G,H,I,J] 이렇게 10개 있음
+
+  - 어떤 한 Test sample의 label이 [1,1,1,0,0,0,0,0,0,0]일 경우, 이 Test sample의 class는 [A,B,C]，k=3
+  - 이 Test sample에 대해 모델이 예측한 vector 값이 [0.9,0.8,0.1,0.0,0.0,0.0,0.5,0.2,0.0,0.0] 일 경우 가장 높게 예측한 k=3개의 Relation class은 [A,B,G]
+    - 예측한 k=3개의 Relation class 중 [A,B]는 정확하게 예측을 하였음 
+  - Recall@k = len([A,B]) / len([A,B,C]) = 2/3 ≈ 0.67
+
+  ​	
+
+
+### Dataset
+
+- **VRD (Visual Relationship Detection dataset)**
+
+  - *Images* :
+
+    - Train (train_images) : 2999개
+
+      ( `002424.jpg` 가 존재하지 않음 ) 
+
+    - Validation (val_images) : 1000개 
+
+    - Test (test_images) : 1000개 
+
+  - *Relation Annotation* :
+
+     <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" style="zoom:50%;" />
+
+    ```json
+    {...
+    FILENAME: [...
+    	{'subject': {'category': CATEGORY_ID, 'bbox': [XMIN, YMIN, XMAX, YMAX]},
+    	 'predicate': [PREDICATE_ID, ...],
+    	 'object': {'category': CATEGORY_ID, 'bbox': [XMIN, YMIN, XMAX, YMAX]},
+    	}
+    	...]
+    ...}
+    ```
+
+    - Object Class ID : 0~99
+    - Predicate Class ID : 0~69
+    - Training Data : 20225개 (즉, 1개 train_image 당 평균 20225/2999 ≈ 7개 Relation pair가 있음)
 

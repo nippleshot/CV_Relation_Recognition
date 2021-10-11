@@ -2,7 +2,7 @@
 import os
 import pickle
 import numpy as np
-
+from tqdm import tqdm
 import yaml
 
 
@@ -31,22 +31,66 @@ def evaluation(gt_labels, predictions):
         pr_label[top_k_ids] = 1
         tp_cnt += sum(pr_label * gt_label)
 
-    print('Recall: %.4f' % (tp_cnt * 1.0 / gt_cnt))
+    print('\t Recall: %.4f \n' % (tp_cnt * 1.0 / gt_cnt))
 
+
+def get_label(model_ver, split, cache_root, dataset_root):
+    if model_ver == 1:
+        os_path = os.path.join(cache_root, '%s_labels.bin' % split)
+        with open(os_path, 'rb') as f:
+            gt_labels = pickle.load(f)
+        return gt_labels
+    elif model_ver == 2:
+        imgs_path = os.path.join(dataset_root, '%s_images' % split)
+        file_list = dict()
+        for root, dir, files in os.walk(imgs_path):
+            for file in files:
+                file_list[file] = os.path.join(root, file)
+
+        label_builder = []
+        for file_name in tqdm(sorted(file_list.keys())):
+            os_path = os.path.join(cache_root, 'cropped_resized', '%s_labels_img_%s.bin' % (split, file_name.rstrip('.jpg')))
+
+            with open(os_path, 'rb') as f:
+                label_builder = label_builder + pickle.load(f)
+
+        return np.array(label_builder)
+    else:
+        print("ARGUMENT_ERROR : model_ver should be 1 or 2")
+        raise ValueError
 
 if __name__ == '__main__':
+    # cfg_path = '/content/drive/MyDrive/NewRelationTask/config.yaml'
     cfg_path = 'config.yaml'
+
     with open(cfg_path) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
 
+    model_version = cfg['model_ver']
     split = cfg['test_split']
-    prediction_path = os.path.join(cfg['output_root'], '%s_predictions.bin' % split)
-    gt_label_path = os.path.join(cfg['cache_root'], '%s_labels.bin' % split)
+    if model_version == 2:
+        if split.find('checking') != -1:
+            split = 'checking'
 
-    with open(prediction_path, 'rb') as f:
-        predictions = pickle.load(f)
+    gt_labels = get_label(model_version, split, cfg['cache_root'], cfg['data_root'])
 
-    with open(gt_label_path, 'rb') as f:
-        gt_labels = pickle.load(f)
+    gap = cfg['train_save_freq']
+    end = cfg['test_epoch']
+    for epoch_num in range(gap, end + gap, gap):
+        if model_version == 1:
+            prediction_path = os.path.join(cfg['output_root'],
+                                       'model_%d.pkl_%s_predictions.bin' % (epoch_num, split))
+        elif model_version == 2:
+            prediction_path = os.path.join(cfg['output_root'],
+                                       'model2_%d.pkl_%s_predictions.bin' % (epoch_num, split))
+        else:
+            raise ValueError
 
-    evaluation(gt_labels, predictions)
+        with open(prediction_path, 'rb') as f:
+            predictions = pickle.load(f)
+
+        if model_version == 1:
+            print('model_%d.pkl result : ' % epoch_num)
+        elif model_version == 2:
+            print('model2_%d.pkl result : ' % epoch_num)
+        evaluation(gt_labels, predictions)

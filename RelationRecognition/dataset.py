@@ -4,20 +4,21 @@ import time
 import json
 import pickle
 
+import torch
+import yaml
+
 import cv2
 import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 
 from feature import FeatureExtractor
-from helper import calculate_helper
-
 
 class VRD(Dataset):
     def __init__(self, dataset_root, split, cache_root='cache'):
 
         self.dataset_root = dataset_root
-        self.is_testing = split == 'test'
+        self.is_testing = split.find('test') != -1
         self.pre_categories = json.load(open(os.path.join(dataset_root, 'predicates.json')))
         self.obj_categories = json.load(open(os.path.join(dataset_root, 'objects.json')))
 
@@ -25,264 +26,207 @@ class VRD(Dataset):
             os.makedirs(cache_root)
 
         if split == 'test':
-            self.features, self.gt_labels, self.gt_subject_ids, self.gt_object_ids, self.gt_directions = self.__prepare_testing_data__(cache_root)
+            self.total_pic_inputFeature = self.__prepare_data__(split, cache_root, 1)
         elif split == 'train' or split == 'val':
-            self.features, self.gt_labels, self.gt_subject_ids, self.gt_object_ids, self.gt_directions, self.gt_bbox_ratios = self.__prepare_training_data__(split, cache_root)
+            self.total_pic_inputFeature, self.total_pic_labels = self.__prepare_data__(split, cache_root, 0)
+        elif split == 'checking_train' or split == 'checking_val':
+            self.total_pic_inputFeature, self.total_pic_labels = self.__prepare_data__(split, cache_root, 0)
         else:
-            print('split in [train, val, test]')
+            print('split in [train, val, test, checking_test, checking_train]')
             raise ValueError
 
-        self.feature_len = self.features.shape[1]
+        self.input_feature_len = self.total_pic_inputFeature.shape[1]
 
     def pre_category_num(self):
         return len(self.pre_categories)
 
     def obj_category_num(self):
         return len(self.obj_categories)
-
-    def __prepare_training_data__(self, split, cache_root):
-        """
-        准备特征文件和标签文件
-        特征文件包含一个numpy浮点型二维矩阵，N x L，N为样本总数，L为特征长度
-        标签文件包含一个numpy二值型二维矩阵，N x C，N为样本总数，C为关系类别数
-        :param split: train or val
-        :param cache_root: save root
-        :return: features, labels
-        """
-        feature_path = os.path.join(cache_root, '%s_features.bin' % split)
-        label_path = os.path.join(cache_root, '%s_labels.bin' % split)
-        sub_path = os.path.join(cache_root, '%s_subs.bin' % split)
-        obj_path = os.path.join(cache_root, '%s_objs.bin' % split)
+    
+    '''
+    mode == 0 : prepare training data
+    mode == 1 : prepare testing data
+    '''
+    def __prepare_data__(self, split, cache_root, mode):
+        
+        histogram_path = os.path.join(cache_root, '%s_histograms.bin' % split)
         dir_path = os.path.join(cache_root, '%s_dir.bin' % split)
         ratio_path = os.path.join(cache_root, '%s_ratio.bin' % split)
+        sub_path = os.path.join(cache_root, '%s_subs.bin' % split)
+        obj_path = os.path.join(cache_root, '%s_objs.bin' % split)
 
-        if not os.path.exists(feature_path) or not os.path.exists(label_path):
+        filepath_list = [histogram_path, dir_path, ratio_path, sub_path, obj_path]
+        
+        if mode == 0:
+            label_path = os.path.join(cache_root, '%s_labels.bin' % split)
+            filepath_list = filepath_list + [label_path]
+            
+        file_not_exist = False
+        for filepath in filepath_list:
+            if not os.path.exists(filepath):
+                file_not_exist = True
+
+        if file_not_exist:
             print('Extracting features for %s set ...' % split)
             time.sleep(2)
-
+            
+            if split.find('checking') != -1:
+                split = 'checking'
             imgs_path = os.path.join(self.dataset_root, '%s_images' % split)
             ano_path = os.path.join(self.dataset_root, 'annotations_%s.json' % split)
-
-            features_builder = []
-            gt_labels_builder = []
-            sub_id_builder = []
-            obj_id_builder = []
+            
+            # "여러개" 사진에 대한 여러 훈련 데이터 
+            histogram_builder = []
             direction_builder = []
             ratio_builder = []
+            sub_id_builder = []
+            obj_id_builder = []
+            if mode == 0:
+                gt_labels_builder = []
 
             feature_extractor = FeatureExtractor()
+
+            # annotations 파일 읽어드려서 annotation_all 작성
             with open(ano_path, 'r') as f:
                 annotation_all = json.load(f)
+
             file_list = dict()
+            # file_list = {'file name': file path, ... }
             for root, dir, files in os.walk(imgs_path):
                 for file in files:
                     file_list[file] = os.path.join(root, file)
-            for file in tqdm(sorted(file_list.keys())):
-                ano = annotation_all[file]
-                samples_info = []
-                labels = []
 
-                subjects = []
-                objects = []
-                helper = calculate_helper()
-                directions = []
-                ratios = []
+            # file_list의 'file name' 순서대로 하나씩 선택
+            for file in tqdm(sorted(file_list.keys())):
+                # ano =  [{
+                #   "predicate": [3],
+                #   "subject": {"category": 0, "bbox": [230, 72, 415, 661]},
+                #   "object": {"category": 20, "bbox": [442, 292, 601, 433]}
+                #   }, ...]
+                ano = annotation_all[file]
+
+                """
+                * 이 list들 에다가 "한개" 사진에 대한 여러 훈련 데이터들을 append 할 예정임
+                samples_infos 형태 : [[],  [],  ...] -> 각 [] 형태  = [sub_color_hist, sub_grad_hist, obj_color_hist, obj_grad_hist] (총 길이 : 2184)
+                directions 형태    : [[],  [],  ...] -> 각 [] 형태  = [one_hot] (총 길이 : 16)
+                ratios 형태        : [[],  [],  ...] -> 각 [] 형태  = [one_hot, float value] (총 길이 : 9)
+                sub_ids 형태       : [int, int, ...]
+                obj_ids 형태       : [int, int, ...]
+                labels 형태        : [[],  [],  ...] -> 각 [] 형태  = [one_hot] (총 길이 : 70)
+                """
+                samples_infos = [] 
+                directions = []    
+                ratios = []        
+                sub_ids = []       
+                obj_ids = []
+                if mode == 0:
+                    labels = []        
 
                 for sample in ano:
+                    # "한개" 사진의 "한개" 훈련 데이터의 data parsing
                     gt_predicates = sample['predicate']
-                    gt_object_id = sample['object']['category']
-                    gt_object_loc = sample['object']['bbox']
-                    gt_subject_id = sample['subject']['category']
-                    gt_subject_loc = sample['subject']['bbox']
-                    samples_info.append(gt_subject_loc + [gt_subject_id] + gt_object_loc + [gt_object_id])
+                    gt_object_id = sample['object']['category']     # int 형
+                    gt_object_loc = sample['object']['bbox']        # list 형
+                    gt_subject_id = sample['subject']['category']   # int 형
+                    gt_subject_loc = sample['subject']['bbox']      # list 형
 
-                    sub_bbox_center = helper.cal_bbox_center(gt_subject_loc[0], gt_subject_loc[1], gt_subject_loc[2], gt_subject_loc[3])
-                    obj_bbox_center = helper.cal_bbox_center(gt_object_loc[0],gt_object_loc[1], gt_object_loc[2], gt_object_loc[3])
-                    dir_compass = helper.cal_sub2obj_direction(sub_bbox_center[0], obj_bbox_center[0], sub_bbox_center[1], sub_bbox_center[1])
-                    dir_one_hot = helper.dir_convert2_one_hot(dir_compass)
-                    # bbox_ratio = helper.cal_bbox_WnH(gt_subject_loc, gt_object_loc, 0)
-                    bbox_ratio_with_Area = helper.cal_bbox_WnH(gt_subject_loc, gt_object_loc, 1)
+                    # "한개" 사진의 "한개" 훈련 데이터의 subject와 object의 방향 정보 one_hot 형태로 획득
+                    sub_bbox_center = feature_extractor.cal_bbox_center(gt_subject_loc[0], gt_subject_loc[1], gt_subject_loc[2], gt_subject_loc[3])
+                    obj_bbox_center = feature_extractor.cal_bbox_center(gt_object_loc[0],gt_object_loc[1], gt_object_loc[2], gt_object_loc[3])
+                    dir_compass = feature_extractor.cal_sub2obj_direction(sub_bbox_center[0], obj_bbox_center[0], sub_bbox_center[1], obj_bbox_center[1])
+                    dir_one_hot = feature_extractor.one_hot(dir_compass)
+
+                    # "한개" 사진의 "한개" 훈련 데이터의 subject와 object bbox 비율 및 면적 정보 획득
+                    bbox_ratio_with_Area = feature_extractor.cal_bbox_WnH(gt_subject_loc, gt_object_loc, add_area_ratio=1)
 
 
-                    # sub_one_hot = np.zeros(self.obj_category_num())
-                    # obj_one_hot = np.zeros(self.obj_category_num())
-                    # sub_one_hot[gt_subject_id] = 1
-                    # obj_one_hot[gt_object_id] = 1
-
-                    subjects.append([gt_subject_id])
-                    objects.append([gt_object_id])
+                    # 획득한 정보들 추가
+                    samples_infos.append(gt_subject_loc + [gt_subject_id] + gt_object_loc + [gt_object_id]) # [sub_loc] + [sub_id] + [obj_loc] + [obj_id] ==> [sub_loc, sub_id, obj_loc, obj_id]
                     directions.append(dir_one_hot.tolist())
                     ratios.append(bbox_ratio_with_Area.tolist())
+                    sub_ids.append([gt_subject_id])
+                    obj_ids.append([gt_object_id])
+                    if mode == 0:
+                        predicates = np.zeros(self.pre_category_num()) # predicates를 one_hot 형태로 변경
+                        for p in gt_predicates:
+                            predicates[p] = 1
+                        labels.append(predicates.tolist())
 
-                    # subjects.append(sub_one_hot.tolist())
-                    # objects.append(obj_one_hot.tolist())
-                    # directions.append(dir_one_hot.tolist())
-
-                    predicates = np.zeros(self.pre_category_num())
-                    for p in gt_predicates:
-                        predicates[p] = 1
-                    labels.append(predicates.tolist())
-                feature = feature_extractor.extract_features(cv2.imread(file_list[file]), samples_info)
-                features_builder = features_builder + feature.tolist()
-                gt_labels_builder = gt_labels_builder + labels
-
-                sub_id_builder = sub_id_builder + subjects
-                obj_id_builder = obj_id_builder + objects
+                # one_pic_histograms 형태 : np.array([],[],[], ...)
+                one_pic_histograms = feature_extractor.extract_features(cv2.imread(file_list[file]), samples_infos)
+                # one_pic_histograms.tolist() 형태 : [[],[],[], ...] + [[],[],[], ...] = [[],[],[],[],[],[], ...]
+                histogram_builder = histogram_builder + one_pic_histograms.tolist()
                 direction_builder = direction_builder + directions
                 ratio_builder = ratio_builder + ratios
+                sub_id_builder = sub_id_builder + sub_ids
+                obj_id_builder = obj_id_builder + obj_ids
+                if mode == 0:
+                    gt_labels_builder = gt_labels_builder + labels
 
-            features = np.array(features_builder)
-            gt_labels = np.array(gt_labels_builder)
-            gt_subject_ids = np.array(sub_id_builder)
-            gt_object_ids = np.array(obj_id_builder)
-            gt_directions = np.array(direction_builder)
-            gt_bbox_ratios = np.array(ratio_builder)
+            total_pic_histograms = np.array(histogram_builder)
+            total_pic_directions = np.array(direction_builder)
+            total_pic_ratios = np.array(ratio_builder)
+            total_pic_sub_ids = np.array(sub_id_builder)
+            total_pic_obj_ids = np.array(obj_id_builder)
+            if mode == 0:
+                total_pic_labels = np.array(gt_labels_builder)
 
-            with open(feature_path, 'wb') as fw:
-                pickle.dump(features, fw)
-            with open(label_path, 'wb') as fw:
-                pickle.dump(gt_labels, fw)
-            with open(sub_path, 'wb') as fw:
-                pickle.dump(gt_subject_ids, fw)
-            with open(obj_path, 'wb') as fw:
-                pickle.dump(gt_object_ids, fw)
+            with open(histogram_path, 'wb') as fw:
+                pickle.dump(total_pic_histograms, fw)
             with open(dir_path, 'wb') as fw:
-                pickle.dump(gt_directions, fw)
+                pickle.dump(total_pic_directions, fw)
             with open(ratio_path, 'wb') as fw:
-                pickle.dump(gt_bbox_ratios, fw)
+                pickle.dump(total_pic_ratios, fw)
+            with open(sub_path, 'wb') as fw:
+                pickle.dump(total_pic_sub_ids, fw)
+            with open(obj_path, 'wb') as fw:
+                pickle.dump(total_pic_obj_ids, fw)
+            if mode == 0:
+                with open(label_path, 'wb') as fw:
+                    pickle.dump(total_pic_labels, fw)
 
         else:
             print('Loading data ...')
-            with open(feature_path, 'rb') as f:
-                features = pickle.load(f)
-            with open(label_path, 'rb') as f:
-                gt_labels = pickle.load(f)
-            with open(sub_path, 'rb') as f:
-                gt_subject_ids = pickle.load(f)
-            with open(obj_path, 'rb') as f:
-                gt_object_ids = pickle.load(f)
+            with open(histogram_path, 'rb') as f:
+                total_pic_histograms = pickle.load(f)
             with open(dir_path, 'rb') as f:
-                gt_directions = pickle.load(f)
+                total_pic_directions = pickle.load(f)
             with open(ratio_path, 'rb') as f:
-                gt_bbox_ratios = pickle.load(f)
-
-
-        return features, gt_labels, gt_subject_ids, gt_object_ids, gt_directions, gt_bbox_ratios
-
-    def __prepare_testing_data__(self, cache_root):
-        """
-        准备特征文件
-        特征文件包含一个numpy浮点型二维矩阵，N x L，N为样本总数，L为特征长度
-        :param cache_root: save root
-        :return: features, labels=None
-        """
-        feature_path = os.path.join(cache_root, 'test_features.bin')
-        sub_path = os.path.join(cache_root, 'test_subs.bin')
-        obj_path = os.path.join(cache_root, 'test_objs.bin')
-        dir_path = os.path.join(cache_root, 'test_dir.bin')
-        ratio_path = os.path.join(cache_root, 'test_ratio.bin')
-        if not os.path.exists(feature_path):
-            print('Extracting features for test set ...')
-            time.sleep(2)
-
-            imgs_path = os.path.join(self.dataset_root, 'test_images')
-            ano_path = os.path.join(self.dataset_root, 'annotations_test_so.json')
-            features_builder = []
-
-            sub_id_builder = []
-            obj_id_builder = []
-
-            helper = calculate_helper()
-            direction_builder = []
-            ratio_builder = []
-
-            subjects = []
-            objects = []
-            directions = []
-            ratios = []
-
-            feature_extractor = FeatureExtractor()
-            with open(ano_path, 'r') as f:
-                annotation_all = json.load(f)
-            file_list = dict()
-            for root, dir, files in os.walk(imgs_path):
-                for file in files:
-                    file_list[file] = os.path.join(root, file)
-            for file in tqdm(sorted(file_list.keys())):
-                ano = annotation_all[file]
-                samples_info = []
-                for sample in ano:
-                    gt_object_id = sample['object']['category']
-                    gt_object_loc = sample['object']['bbox']
-                    gt_subject_id = sample['subject']['category']
-                    gt_subject_loc = sample['subject']['bbox']
-                    samples_info.append(gt_subject_loc + [gt_subject_id] + gt_object_loc + [gt_object_id])
-
-                    sub_bbox_center = helper.cal_bbox_center(gt_subject_loc[0], gt_subject_loc[1], gt_subject_loc[2],
-                                                             gt_subject_loc[3])
-                    obj_bbox_center = helper.cal_bbox_center(gt_object_loc[0], gt_object_loc[1], gt_object_loc[2],
-                                                             gt_object_loc[3])
-                    dir_compass = helper.cal_sub2obj_direction(sub_bbox_center[0], obj_bbox_center[0],
-                                                               sub_bbox_center[1], sub_bbox_center[1])
-                    dir_one_hot = helper.dir_convert2_one_hot(dir_compass)
-                    bbox_ratio_with_Area = helper.cal_bbox_WnH(gt_subject_loc, gt_object_loc, 1)
-
-                    subjects.append([gt_subject_id])
-                    objects.append([gt_object_id])
-                    directions.append(dir_one_hot.tolist())
-                    ratios.append(bbox_ratio_with_Area.tolist())
-
-
-                feature = feature_extractor.extract_features(cv2.imread(file_list[file]), samples_info)
-                features_builder = features_builder + feature.tolist()
-                sub_id_builder = sub_id_builder + subjects
-                obj_id_builder = obj_id_builder + objects
-                direction_builder = direction_builder + directions
-                ratio_builder = ratio_builder + ratios
-
-            features = np.array(features_builder)
-            gt_subject_ids = np.array(sub_id_builder)
-            gt_object_ids = np.array(obj_id_builder)
-            gt_directions = np.array(direction_builder)
-            gt_bbox_ratios = np.array(ratio_builder)
-
-            with open(feature_path, 'wb') as fw:
-                pickle.dump(features, fw)
-            with open(sub_path, 'wb') as fw:
-                pickle.dump(gt_subject_ids, fw)
-            with open(obj_path, 'wb') as fw:
-                pickle.dump(gt_object_ids, fw)
-            with open(dir_path, 'wb') as fw:
-                pickle.dump(gt_directions, fw)
-            with open(ratio_path, 'wb') as fw:
-                pickle.dump(gt_bbox_ratios, fw)
-
+                total_pic_ratios = pickle.load(f)
+            with open(sub_path, 'rb') as f:
+                total_pic_sub_ids = pickle.load(f)
+            with open(obj_path, 'rb') as f:
+                total_pic_obj_ids = pickle.load(f)
+            if mode == 0:
+                with open(label_path, 'rb') as f:
+                    total_pic_labels = pickle.load(f)
+        
+        if mode == 0:
+            return np.concatenate((total_pic_histograms, total_pic_directions, total_pic_ratios, total_pic_sub_ids, total_pic_obj_ids), axis=1), total_pic_labels 
+        elif mode == 1:
+            return np.concatenate((total_pic_histograms, total_pic_directions, total_pic_ratios, total_pic_sub_ids, total_pic_obj_ids), axis=1)
         else:
-            print('Loading data ...')
-            with open(feature_path, 'rb') as f:
-                features = pickle.load(f)
-            with open(sub_path, 'rb') as f:
-                gt_subject_ids = pickle.load(f)
-            with open(obj_path, 'rb') as f:
-                gt_object_ids = pickle.load(f)
-            with open(dir_path, 'rb') as f:
-                gt_directions = pickle.load(f)
-            with open(ratio_path, 'rb') as f:
-                gt_bbox_ratios = pickle.load(f)
-
-
-        return features, None, gt_subject_ids, gt_object_ids, gt_directions, gt_bbox_ratios
-
+            print("ARGUMENT_ERROR : mode should be 0 or 1")
+            raise ValueError
+    
     def __getitem__(self, item):
         if self.is_testing:
-            return self.features[item], 0, self.gt_subject_ids[item], self.gt_object_ids[item], self.gt_directions[item], self.gt_bbox_ratios[item]
+            return self.total_pic_inputFeature[item]
         else:
-            return self.features[item], self.gt_labels[item], self.gt_subject_ids[item], self.gt_object_ids[item], self.gt_directions[item], self.gt_bbox_ratios[item]
+            return self.total_pic_inputFeature[item], self.total_pic_labels[item]
 
     def __len__(self):
-        return self.features.shape[0]
+        # 준비한 train/val/train 데이터가 총 몇개 인지?
+        return self.total_pic_inputFeature.shape[0] 
 
     def len(self):
-        return self.features.shape[0]
+        return self.total_pic_inputFeature.shape[0]
 
 
+if __name__ == '__main__':
+    cfg_path = 'config.yaml'
+    with open(cfg_path) as f:
+        cfg = yaml.load(f, Loader=yaml.FullLoader)
+
+    train_set = VRD(cfg['data_root'], cfg['train_split'], cfg['cache_root'])
+    print(train_set.__getitem__(3))
