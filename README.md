@@ -8,7 +8,6 @@
 - **OUTPUT** : Predicate class 70개에 대한 예측 vector ( 각 value 범위 : [0, 1] )
 
 
-
 ### Models
 
 #### CNN을 사용하지 않은 구조 ( `model_ver: 1` )
@@ -32,7 +31,7 @@
 
 - ***Bounding box Ratio & Area feature*** :
 
-  본 Feature array의 0/~7번 index는 One-hot encode 형식이며 Subject와 object의 bounding box 가로,세로 길이의 비율을 나타낸다. 0/~7번 index값이 1이되는 기준은 다음 조건을 만족 할 경우 설정된다 :
+  본 Feature array의 앞에 7개 index는 One-hot encode 형식이며 Subject와 object의 bounding box 가로,세로 길이의 비율을 나타낸다. 앞에 7개 index값이 1이되는 기준은 다음 조건을 만족 할 경우 설정된다 :
 
   Index[0] :  `Subject bbox의 x축 길이 > Subject bbox의 y축 길이*2` 
 
@@ -89,7 +88,6 @@
     ```
 
     
-
 #### CNN을 사용한 구조 ( `model_ver: 2` )
 
 - `model_ver: 1` 를 통해 이미지에서 직접 구상한 feature들을 계산하여 추출하는 방식은 성능이 좋지못한 걸로 확인해 CNN을 활용하여 모델의 성능을 개선시켜보기로 했다.
@@ -153,7 +151,6 @@
 - Subject와 Object 이미지의 feature 그리고 Interaction Pattern의 feature까지 모두 concatenate하여 `model_ver: 1` 에서 사용하였던 Classification Layer의 입력으로 넣었다.
 
 
-
 ### Metrics
 
 * 평가지표 :  Recall@k
@@ -167,8 +164,6 @@
   - 이 Test sample에 대해 모델이 예측한 vector 값이 [0.9,0.8,0.1,0.0,0.0,0.0,0.5,0.2,0.0,0.0] 일 경우 가장 높게 예측한 k=3개의 Relation class은 [A,B,G]
     - 예측한 k=3개의 Relation class 중 [A,B]는 정확하게 예측을 하였음 
   - Recall@k = len([A,B]) / len([A,B,C]) = 2/3 ≈ 0.67
-
-  ​	
 
 
 ### Dataset
