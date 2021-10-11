@@ -2,7 +2,7 @@
 
 ### Main Task
 
-<img src="./pics/Screen Shot 2021-10-11 at 1.06.36 PM.png" alt="Screen Shot 2021-10-11 at 1.06.36 PM" style="zoom:23%;" />
+<img src="./pics/Screen Shot 2021-10-11 at 1.06.36 PM.png" alt="Screen Shot 2021-10-11 at 1.06.36 PM" width="200" />
 
 - **INPUT** : Subject bounding box 와 Object bounding box 정보가 포함된 한 장의 이미지
 - **OUTPUT** : Predicate class 70개에 대한 예측 vector ( 각 value 범위 : [0, 1] )
@@ -187,7 +187,7 @@
 
   - *Relation Annotation* :
 
-     <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" style="zoom:50%;" />
+     <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" width="200" />
 
     ```python
     {...
