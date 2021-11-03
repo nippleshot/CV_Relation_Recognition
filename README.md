@@ -91,7 +91,7 @@
 #### CNN을 사용한 구조 ( `model_ver: 2` )
 
 - `model_ver: 1` 를 통해 이미지에서 직접 구상한 feature들을 계산하여 추출하는 방식은 성능이 좋지못한 걸로 확인해 CNN을 활용하여 모델의 성능을 개선시켜보기로 했다.
-- 모델의 전체적인 구조는 Human-Object Proposal 부분이 제외된 <a href="https://arxiv.org/pdf/1702.05448.pdf">HO-RCNN (Chao et al., 2018)</a> 의 구조를 참고하였고 Subject와 Object 이미지를 위한 CNN는 따로 훈련된 ResNet-152를 사용하기로 했다.
+- 모델의 전체적인 구조는 Human-Object Proposal 부분이 제외된 <a href="https://arxiv.org/pdf/1702.05448.pdf">HO-RCNN (Chao et al., 2017)</a> 의 구조를 참고하였고 Subject와 Object 이미지를 위한 CNN는 따로 훈련된 ResNet-152를 사용하기로 했다.
 
 ##### [데이터 전처리]
 
@@ -136,7 +136,7 @@
 
 - 모든 데이터 전처리하여 pickle를 통해 저장해둔 binary file의 용량이 전체 약 20GB정도 되서 Colab의 Standard RAM(13.6GB)으로는 훈련 진행이 불가능했다 🙄
 
-  - 그래서 `gzip` 을 통해 저장할 data를 압축하여 저장했고 AWS의 힘을 빌려 진행하였다.
+  - 그래서 AWS EC2의 힘을 빌려 진행하였다.
 
   
 
