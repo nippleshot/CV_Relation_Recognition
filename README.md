@@ -266,7 +266,7 @@
   test_batch_size:64
   ```
 
-- *Result* : 20 epoch 훈련을 시켰을 때 모델의 성능 = 0.4362
+- *Result* : 20 epoch 훈련을 시켰을 때 모델의 성능 = 0.4362 (훈련 시간 및 AWS EC2 계산 비용이 큰 관계로 50 epoch까지 돌려보지는 못했다.)
 
   <img src="./pics/Screen Shot 2021-11-03 at 10.38.26 AM.png" width="700" />
-  * 훈련 시간 및 AWS EC2 계산 비용이 큰 관계로 50 epoch까지 돌려보지는 못했다.
+  
