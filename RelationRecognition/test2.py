@@ -7,7 +7,8 @@ import numpy as np
 from tqdm import tqdm
 from model2 import Classifier2
 from dataset2 import VRD2
-
+# import torch_xla
+# import torch_xla.core.xla_model as xm
 
 class Container:
 
@@ -15,10 +16,11 @@ class Container:
         self.dataset = dataset
         self.model = model
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # self.device = xm.xla_device()
         self.batch_size = cfg['test_batch_size']
 
     def test(self):
-        data_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size)
+        data_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, drop_last=True)
 
         self.model.to(self.device)
         self.model.eval()
@@ -48,7 +50,6 @@ class Container:
 
 
 if __name__ == '__main__':
-    # cfg_path = '/content/drive/MyDrive/NewRelationTask/config.yaml'
     cfg_path = 'config.yaml'
     with open(cfg_path) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)

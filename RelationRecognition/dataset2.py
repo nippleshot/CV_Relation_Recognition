@@ -9,6 +9,8 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import Dataset
 import cv2
+import matplotlib.pyplot as plt
+
 
 class VRD2(Dataset):
     def __init__(self, dataset_root, split, quick_load, cache_root='cache'):
@@ -45,29 +47,36 @@ class VRD2(Dataset):
 
     def __quick_load__(self, split, cache_root, mode):
         print("\nSTART : quick load")
-        if split.find('checking') != -1:
-            split = 'checking'
+        # if split.find('checking') != -1:
+        #     split = 'checking'
         sub_total_path = os.path.join(cache_root, 'cropped_resized_total', '%s_subs_img_total.bin' % split)
         obj_total_path = os.path.join(cache_root, 'cropped_resized_total', '%s_objs_img_total.bin' % split)
         pred_total_path = os.path.join(cache_root, 'cropped_resized_total', '%s_preds_img_total.bin' % split)
         label_total_path = os.path.join(cache_root, 'cropped_resized_total', '%s_labels_img_total.bin' % split)
 
+        print("loading sub_total")
         with open(sub_total_path, 'rb') as f:
             sub_img_builder = pickle.load(f)
+        print("loading obj_total")
         with open(obj_total_path, 'rb') as f:
             obj_img_builder = pickle.load(f)
+        print("loading pred_total")
         with open(pred_total_path, 'rb') as f:
             pred_img_builder = pickle.load(f)
         if mode == 0:
+            print("loading label_total")
             with open(label_total_path, 'rb') as f:
                 img_label_builder = pickle.load(f)
 
         sub_img_builder = np.array(sub_img_builder)
         obj_img_builder = np.array(obj_img_builder)
         pred_img_builder = np.array(pred_img_builder)
-
         if mode == 0:
             img_label_builder = np.array(img_label_builder)
+            print("sub_img_builder length ==> " + str(sub_img_builder.shape))
+            print("obj_img_builder length ==> " + str(obj_img_builder.shape))
+            print("pred_img_builder length ==> " + str(pred_img_builder.shape))
+            print("img_label_builder length ==> " + str(img_label_builder.shape))
             return sub_img_builder, obj_img_builder, pred_img_builder, img_label_builder
         elif mode == 1:
             return sub_img_builder, obj_img_builder, pred_img_builder
@@ -233,25 +242,31 @@ def save(sub_img_path, sub_imgs, obj_img_path, obj_imgs, pred_img_path, pred_img
             pickle.dump(pic_labels, fw)
 
 def check_image(train_set, item_num):
+    fig, axes = plt.subplots(1, 3)
     label = train_set.__getitem__(item_num)[3]
+    labels = ""
     for idx in range(0, len(label)):
         if label[idx] == 1:
-            print("\nlabel ==> " + train_set.pre_categories[idx])
-
-    cv2.imshow("sub", train_set.__getitem__(item_num)[0])
-    cv2.imshow("obj", train_set.__getitem__(item_num)[1])
+            labels = labels + train_set.pre_categories[idx] + "\n"
 
     pred = train_set.__getitem__(item_num)[2]
     imsi_channel = np.zeros((pred.shape[0], pred.shape[1], 1))
     visual_pred = np.concatenate((pred, imsi_channel), 2)
-    cv2.imshow("pred", visual_pred)
 
-    cv2.waitKey()
-    cv2.destroyAllWindows()
+    axes[0].imshow(cv2.cvtColor(train_set.__getitem__(item_num)[0], cv2.COLOR_BGR2RGB))
+    axes[0].set_title("Subject")
+
+    axes[1].imshow(cv2.cvtColor(train_set.__getitem__(item_num)[1], cv2.COLOR_BGR2RGB))
+    axes[1].set_title("Object")
+
+    axes[2].imshow(cv2.cvtColor(visual_pred.astype('float32'), cv2.COLOR_BGR2RGB))
+    axes[2].set_title(labels[:-1])
+
+    plt.show()
+    # plt.savefig("trainImg/%s.jpg" % item_num, dpi=200, bbox_inches='tight', pad_inches=0.2)
 
 
 if __name__ == '__main__':
-    # cfg_path = '/content/drive/MyDrive/NewRelationTask/config.yaml'
     cfg_path = 'config.yaml'
     with open(cfg_path) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)
@@ -259,8 +274,11 @@ if __name__ == '__main__':
     train_set = VRD2(cfg['data_root'], cfg['train_split'], True, cfg['cache_root'])
     # val_set = VRD2(cfg['data_root'], cfg['test_split'], cfg['cache_root'])
 
+    check_image(train_set, 12)
 
-    item_num = 24
-    check_image(train_set, item_num)
+    # for idx in range(30):
+    #     check_image(train_set, idx)
+
+
 
 

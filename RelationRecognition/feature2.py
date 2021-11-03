@@ -29,7 +29,7 @@ def show_ImgFeatureInfo(imgPath, sub_region, obj_region, sub_name, obj_name, pre
 
     sub_color = (0, 0, 255)
     obj_color = (255, 0, 0)
-    pred_color = (255, 0, 255)
+    pred_color = (219, 112, 147)
     attention_color = (0, 255, 0)
 
     '''
@@ -56,25 +56,22 @@ def show_ImgFeatureInfo(imgPath, sub_region, obj_region, sub_name, obj_name, pre
     # object center (x,y)
     obj_center = feature.cal_bbox_center(obj_region[0], obj_region[1], obj_region[2], obj_region[3])
     # predicate arrowed line
-    cv2.arrowedLine(img, sub_center, obj_center, color=pred_color, thickness=2)
+    cv2.arrowedLine(img, sub_center, obj_center, color=pred_color, thickness=3)
     # predicate arrowed line direction
     direction = feature.cal_sub2obj_direction(sub_center[0], obj_center[0], sub_center[1], obj_center[1], print_mode=1)
     cv2.putText(img, "("+direction+")", (obj_center[0]+10, obj_center[1]-30), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.9, color=pred_color, thickness=3)
     # predicate label
     cv2.putText(img, pred_name, (22,22), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.9, color=pred_color, thickness=2)
 
-    '''
-    attention_region 정보 사진에 나타내기
-    '''
-    # attention_region = find_attention_window(sub_region, obj_region)
-    # cv2.rectangle(img, (attention_region[0], attention_region[3]), (attention_region[2], attention_region[1]), attention_color, thickness=1)
+    attention_region = find_attention_window(sub_region, obj_region)
+    cv2.rectangle(img, (attention_region[0], attention_region[3]), (attention_region[2], attention_region[1]), attention_color, thickness=1)
 
     '''
     모든 정보가 포함된 사진 보여주기
     '''
     cv2.imshow("Image with Infos", img)
-    cv2.waitKey()
-    cv2.destroyAllWindows()
+    # cv2.waitKey()
+    # cv2.destroyAllWindows()
 
 
 '''
@@ -147,8 +144,16 @@ def make_2channel_img(img_path, sub_region, obj_region):
     height, width, channel = img.shape
     first_subject_channel = torch.zeros(height, width, 1)
     second_object_channel = torch.zeros(height, width, 1)
+    # print("\n ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    # print("make_2channel_img : Original  sub_region ==> " + str(sub_region))
+    # print("make_2channel_img : Original  obj_region  ==> " + str(obj_region ))
     sub_region = [sub_region[0]+1, sub_region[1]+1, sub_region[2]-1, sub_region[3]-1]
     obj_region = [obj_region[0]+1, obj_region[1]+1, obj_region[2]-1, obj_region[3]-1]
+    # print("make_2channel_img : 1 pixel fixed sub_region ==> " + str(sub_region))
+    # print("make_2channel_img : 1 pixel fixed obj_region  ==> " + str(obj_region ))
+    # print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \n ")
+    # print("make_2channel_img : first_subject_channel shape     ==> " + str(first_subject_channel.shape))
+    # print("make_2channel_img : second_object_channel shape ==> " + str(second_object_channel.shape))
 
     for x_idx in range(sub_region[0], sub_region[2] + 1):
         for y_idx in range(sub_region[1], sub_region[3] + 1):
@@ -221,43 +226,42 @@ if __name__ == '__main__':
     predicates_categories = json.load(open(os.path.join(cfg['data_root'], 'predicates.json')))
     objects_categories = json.load(open(os.path.join(cfg['data_root'], 'objects.json')))
 
-    # {"predicate": [18], "subject": {"category": 0, "bbox": [192, 650, 266, 697]}, "object": {"category": 0, "bbox": [589, 639, 635, 698]}}
-    imgs_path = os.path.join(cfg['data_root'], 'train_images', '000011.jpg')
-    sub_region = [192, 650, 266, 697]
-    obj_region = [589, 639, 635, 698]
+    # {"predicate": [3], "subject": {"category": 0, "bbox": [230, 72, 415, 661]}, "object": {"category": 20, "bbox": [442, 292, 601, 433]}},
+    imgs_path = os.path.join(cfg['data_root'], 'train_images', '000001.jpg')
+    sub_region = [230, 72, 415, 661]
+    obj_region = [442, 292, 601, 433]
     sub_name = objects_categories[0]
-    obj_name = objects_categories[0]
-    list = [predicates_categories[18]]
+    obj_name = objects_categories[20]
+    list = [predicates_categories[3]]
     pred_name = pred_nameMaker(list)
 
-    # {"predicate": [3], "subject": {"category": 49, "bbox": [192, 493, 312, 828]}, "object": {"category": 49, "bbox": [67, 495, 178, 702]}}
-    # imgs_path = os.path.join(cfg['data_root'], 'train_images', '000944.jpg')
-    # sub_region = [192, 493, 312, 828]
-    # obj_region = [67, 495, 178, 702]
-    # sub_name = objects_categories[49]
-    # obj_name = objects_categories[49]
-    # list = [predicates_categories[3]]
+    # {"predicate": [0, 62, 55], "subject": {"category": 0, "bbox": [376, 540, 1024, 768]}, "object": {"category": 51, "bbox": [4, 646, 888, 767]}}
+    # imgs_path = os.path.join(cfg['data_root'], 'train_images', '000001.jpg')
+    # sub_region = [376, 540, 1024, 768]
+    # obj_region = [4, 646, 888, 767]
+    # sub_name = objects_categories[0]
+    # obj_name = objects_categories[51]
+    # list = [predicates_categories[0], predicates_categories[62], predicates_categories[55]]
     # pred_name = pred_nameMaker(list)
 
-    # {"predicate": [0, 9], "subject": {"category": 71, "bbox": [60, 297, 608, 455]}, "object": {"category": 5, "bbox": [2, 1, 1277, 955]}}
-    # imgs_path = os.path.join(cfg['data_root'], 'train_images', '000944.jpg')
-    # sub_region = [60, 297, 608, 455]
-    # obj_region = [2, 1, 1277, 955]
-    # sub_name = objects_categories[71]
-    # obj_name = objects_categories[5]
-    # list = [predicates_categories[0], predicates_categories[9]]
+    # {"predicate": [18], "subject": {"category": 0, "bbox": [192, 650, 266, 697]}, "object": {"category": 0, "bbox": [589, 639, 635, 698]}}
+    # imgs_path = os.path.join(cfg['data_root'], 'train_images', '000011.jpg')
+    # sub_region = [192, 650, 266, 697]
+    # obj_region = [589, 639, 635, 698]
+    # sub_name = objects_categories[0]
+    # obj_name = objects_categories[0]
+    # list = [predicates_categories[18]]
     # pred_name = pred_nameMaker(list)
 
     show_ImgFeatureInfo(imgs_path, sub_region, obj_region, sub_name, obj_name, pred_name)
     # crop_and_resize_Img(imgs_path, sub_region, obj_region, (224,224))
+    interaction_pattern = make_interaction_pattern(imgs_path, sub_region, obj_region, (224,224))
+    print("square_img size ==> " + str(interaction_pattern.shape))
 
-    # interaction_pattern = make_interaction_pattern(imgs_path, sub_region, obj_region, (224,224))
-    # print("square_img size ==> " + str(interaction_pattern.shape))
-    #
-    # # for visualization
-    # imsi_channel = np.zeros((interaction_pattern.shape[0], interaction_pattern.shape[1], 1))
-    # img = np.concatenate((interaction_pattern, imsi_channel), 2)
-    # print("square_img visualization size ==> " + str(img.shape))
-    # cv2.imshow("FINAL", img)
-    # cv2.waitKey()
-    # cv2.destroyAllWindows()
+    # for visualization
+    imsi_channel = np.zeros((interaction_pattern.shape[0], interaction_pattern.shape[1], 1))
+    img = np.concatenate((interaction_pattern, imsi_channel), 2)
+    print("square_img visualization size ==> " + str(img.shape))
+    cv2.imshow("FINAL", img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()

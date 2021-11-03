@@ -46,21 +46,20 @@ def get_label(model_ver, split, cache_root, dataset_root):
         for root, dir, files in os.walk(imgs_path):
             for file in files:
                 file_list[file] = os.path.join(root, file)
-
-        label_builder = []
-        for file_name in tqdm(sorted(file_list.keys())):
-            os_path = os.path.join(cache_root, 'cropped_resized', '%s_labels_img_%s.bin' % (split, file_name.rstrip('.jpg')))
-
-            with open(os_path, 'rb') as f:
-                label_builder = label_builder + pickle.load(f)
-
-        return np.array(label_builder)
+        # model_ver = 1 일 때
+        # label_builder = []
+        # for file_name in tqdm(sorted(file_list.keys())):
+        #     os_path = os.path.join(cache_root, 'cropped_resized', '%s_labels_img_%s.bin' % (split, file_name.rstrip('.jpg')))
+        #     with open(os_path, 'rb') as f:
+        #         label_builder = label_builder + pickle.load(f)
+        os_path = os.path.join(cache_root, 'cropped_resized_total', '%s_labels_img_total.bin' % split)
+        with open(os_path, 'rb') as f:
+            return np.array(pickle.load(f))
     else:
         print("ARGUMENT_ERROR : model_ver should be 1 or 2")
         raise ValueError
 
 if __name__ == '__main__':
-    # cfg_path = '/content/drive/MyDrive/NewRelationTask/config.yaml'
     cfg_path = 'config.yaml'
 
     with open(cfg_path) as f:
@@ -68,9 +67,9 @@ if __name__ == '__main__':
 
     model_version = cfg['model_ver']
     split = cfg['test_split']
-    if model_version == 2:
-        if split.find('checking') != -1:
-            split = 'checking'
+    # if model_version == 2:
+    #     if split.find('checking') != -1:
+    #         split = 'checking'
 
     gt_labels = get_label(model_version, split, cfg['cache_root'], cfg['data_root'])
 

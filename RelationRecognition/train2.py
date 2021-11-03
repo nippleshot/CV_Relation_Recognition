@@ -3,6 +3,8 @@ import yaml
 import torch
 from model2 import Classifier2
 from dataset2 import VRD2
+# import torch_xla
+# import torch_xla.core.xla_model as xm
 
 
 class Container:
@@ -11,8 +13,8 @@ class Container:
         self.model = model
         self.dataset = dataset
 
-        # use gpu
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        # self.device = xm.xla_device()
 
         # hyper-parameters
         self.lr_init = cfg['train_lr']
@@ -27,7 +29,7 @@ class Container:
         self.checkpoint_root = cfg['checkpoint_root']
 
     def train(self):
-        data_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True)
+        data_loader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True, drop_last=True)
         batch_num = len(data_loader)
 
         self.model.to(self.device)
@@ -85,7 +87,6 @@ class Container:
 
 
 if __name__ == '__main__':
-    # cfg_path = '/content/drive/MyDrive/NewRelationTask/config.yaml'
     cfg_path = 'config.yaml'
     with open(cfg_path) as f:
         cfg = yaml.load(f, Loader=yaml.FullLoader)

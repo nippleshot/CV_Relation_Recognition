@@ -8,6 +8,44 @@
 - **OUTPUT** : Predicate class 70개에 대한 예측 vector ( 각 value 범위 : [0, 1] )
 
 
+
+### Dataset
+
+- **VRD (Visual Relationship Detection dataset)**
+
+  - Download : https://drive.google.com/file/d/1vPncv8A5m1P_iMFrhdzeANZSSgLtcpSc/view?usp=sharing 
+
+  - *Images* :
+
+    - Train (train_images) : 2999개
+
+      ( `002424.jpg` 가 존재하지 않음 ) 
+
+    - Validation (val_images) : 1000개 
+
+    - Test (test_images) : 1000개 
+
+  - *Relation Annotation* :
+
+    <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" width="300" />
+
+    ```python
+    {...
+    FILENAME: [...
+    	{'subject': {'category': CATEGORY_ID, 'bbox': [XMIN, YMIN, XMAX, YMAX]},
+    	 'predicate': [PREDICATE_ID, ...],
+    	 'object': {'category': CATEGORY_ID, 'bbox': [XMIN, YMIN, XMAX, YMAX]},
+    	}
+    	...]
+    ...}
+    ```
+
+    - Object Class ID : 0~99
+    - Predicate Class ID : 0~69
+    - Training Data : 20225개 (즉, 1개 train_image 당 평균 20225/2999 ≈ 7개 Relation pair가 있음)
+
+
+
 ### Models
 
 #### CNN을 사용하지 않은 구조 ( `model_ver: 1` )
@@ -134,9 +172,17 @@
 
   4. Crop 한 Attention window 부분 안에 Subject와 Object bbox의 비율을 유지하면서 resize를 하기 위해 Attention window의 가로, 세로 길이 중 짧은 것을 긴 것과 동일하게 길이가 되도록 양쪽 side에 0으로 padding을 줘서 정사각형 형태로 만든 다음 224 × 224 × 2 size로 resize한다.
 
-- 모든 데이터 전처리하여 pickle를 통해 저장해둔 binary file의 용량이 전체 약 20GB정도 되서 Colab의 Standard RAM(13.6GB)으로는 훈련 진행이 불가능했다 🙄
+- 전처리된 이미지 데이터 Example :
 
-  - 그래서 AWS EC2의 힘을 빌려 진행하였다.
+  <img src="./pics/0.jpg" width="600" />
+
+  <img src="./pics/12.jpg" width="600" />
+  
+  
+  
+- 모든 데이터 전처리하여 pickle를 통해 저장해둔 binary file의 용량이 전체 약 20GB정도 되서 Colab의 Standard RAM(13.6GB)으로는 훈련 진행이 불가능했다🙄
+
+  - 그래서 AWS EC2(g4dn.4xlarge)의 힘을 빌려 진행하였다.
 
   
 
@@ -151,7 +197,10 @@
 - Subject와 Object 이미지의 feature 그리고 Interaction Pattern의 feature까지 모두 concatenate하여 `model_ver: 1` 에서 사용하였던 Classification Layer의 입력으로 넣었다.
 
 
-### Metrics
+
+### Test Result
+
+#### Metrics
 
 * 평가지표 :  Recall@k
 
@@ -165,37 +214,59 @@
     - 예측한 k=3개의 Relation class 중 [A,B]는 정확하게 예측을 하였음 
   - Recall@k = len([A,B]) / len([A,B,C]) = 2/3 ≈ 0.67
 
+#### CNN을 사용하지 않은 구조 ( `model_ver: 1` ) 성능
 
-### Dataset
+- *Hyperparameter setting* :
 
-- **VRD (Visual Relationship Detection dataset)**
-  - Download : https://drive.google.com/file/d/1vPncv8A5m1P_iMFrhdzeANZSSgLtcpSc/view?usp=sharing 
-  - *Images* :
+  ```yaml
+  model_ver:1
+  
+  #[training setting]
+  train_split: train
+  train_lr: 0.1
+  train_lr_adjust_rate: 0.001
+  train_lr_adjust_freq: 5
+  train_epoch_num: 70
+  train_save_freq: 5
+  train_print_freq: 10
+  train_batch_size: 50
+  
+  #[testing setting]
+  test_split: val
+  test_epoch: 70
+  test_batch_size: 50
+  ```
 
-    - Train (train_images) : 2999개
+- *Result* : 총 70 epoch의 훈련을 시켰고 40 epoch 훈련을 시켰을 때 모델이 0.4401로 가장 좋은 성능을 보였다.
 
-      ( `002424.jpg` 가 존재하지 않음 ) 
+  <img src="./pics/Screen Shot 2021-10-05 at 12.27.59 AM.png" width="300" />
 
-    - Validation (val_images) : 1000개 
+  
 
-    - Test (test_images) : 1000개 
+#### CNN을 사용한 구조 ( `model_ver: 2` ) 성능
 
-  - *Relation Annotation* :
+- *Hyperparameter setting* :
 
-     <img src="./pics/Screen Shot 2021-10-11 at 1.04.47 PM.png" alt="Screen Shot 2021-10-11 at 1.04.47 PM" width="300" />
+  ```yaml
+  model_ver:2
+  
+  #[training setting]
+  train_split:train
+  train_lr:0.1
+  train_lr_adjust_rate:0.001
+  train_lr_adjust_freq:5
+  train_epoch_num:50
+  train_save_freq:5
+  train_print_freq:10
+  train_batch_size:64
+  
+  #[testing setting]
+  test_split:val
+  test_epoch:20#equaltotrain_epoch_num
+  test_batch_size:64
+  ```
 
-    ```python
-    {...
-    FILENAME: [...
-    	{'subject': {'category': CATEGORY_ID, 'bbox': [XMIN, YMIN, XMAX, YMAX]},
-    	 'predicate': [PREDICATE_ID, ...],
-    	 'object': {'category': CATEGORY_ID, 'bbox': [XMIN, YMIN, XMAX, YMAX]},
-    	}
-    	...]
-    ...}
-    ```
+- *Result* : 20 epoch 훈련을 시켰을 때 모델의 성능 = 0.4362
 
-    - Object Class ID : 0~99
-    - Predicate Class ID : 0~69
-    - Training Data : 20225개 (즉, 1개 train_image 당 평균 20225/2999 ≈ 7개 Relation pair가 있음)
-
+  <img src="./pics/Screen Shot 2021-11-03 at 10.38.26 AM.png" width="700" />
+  - 参考 ： 훈련 시간 및 AWS EC2 계산 비용이 큰 관계로 50 epoch까지 돌려보지는 못했다.

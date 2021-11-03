@@ -1,44 +1,27 @@
-#model_ver: 2
+model_ver: 2
 
 # [training setting]
-#train_split: train
-#train_lr: 0.1
-#train_lr_adjust_rate: 0.001
-#train_lr_adjust_freq: 5
-#train_epoch_num: 50
-#train_save_freq: 5
-#train_print_freq: 10
-#train_batch_size: 50
+train_split: train # (train/checking_train)
+train_lr: 0.1
+train_lr_adjust_rate: 0.001
+train_lr_adjust_freq: 5
+train_epoch_num: 50
+train_save_freq: 5
+train_print_freq: 10
+train_batch_size: 64
+
 
 # [testing setting]
-#test_split: test
-#test_split: val
-#test_epoch: 50 # set same value with train_epoch_num
-#test_batch_size: 50
+test_split: val # (val/test/checking_val)
+test_epoch: 20 # equal to train_epoch_num
+test_batch_size: 64 # equal to train_batch_size
+
 
 # [paths setting]
 data_root: data
 cache_root: cache
 output_root: output
 checkpoint_root: checkpoint
-
-model_ver: 2
-
-train_split: checking_train
-train_lr: 0.1
-train_lr_adjust_rate: 0.001
-train_lr_adjust_freq: 5
-train_epoch_num: 1
-train_save_freq: 1
-train_print_freq: 1
-train_batch_size: 15
-
-test_split: checking_val
-test_epoch: 1
-test_batch_size: 15
-
-
-
 
 
 
